@@ -1,0 +1,14 @@
+node_modules/
+.next/
+coverage/
+.env.local
+.env*.local
+.tools/
+*.tsbuildinfo
+.expo/
+dist/
+android/
+ios/
+.env.example
+data/*.sqlite
+data/*.sqlite-*

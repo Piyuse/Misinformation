@@ -1,0 +1,35 @@
+{
+  "name": "falsify-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "start:dev-client": "expo start --dev-client --host localhost",
+    "adb:reverse": "adb reverse tcp:8081 tcp:8081",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "15.1.1",
+    "expo": "56.0.8",
+    "expo-clipboard": "56.0.3",
+    "expo-constants": "56.0.16",
+    "expo-document-picker": "56.0.4",
+    "expo-file-system": "56.0.7",
+    "expo-image-picker": "56.0.15",
+    "expo-linking": "56.0.13",
+    "expo-sharing": "56.0.15",
+    "expo-status-bar": "56.0.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "expo-module-scripts": "56.0.3",
+    "typescript": "~6.0.3"
+  }
+}

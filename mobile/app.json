@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Falsify",
+    "slug": "falsify-mobile",
+    "scheme": "falsify",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.falsify.mobile"
+    },
+    "android": {
+      "package": "com.falsify.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#14213d"
+      }
+    },
+    "plugins": [
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "activationRule": {
+              "supportsText": true,
+              "supportsWebUrlWithMaxCount": 1,
+              "supportsImageWithMaxCount": 1
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": [
+              "text/plain",
+              "image/*",
+              "audio/*",
+              "video/mp4"
+            ],
+            "multipleShareMimeTypes": [
+              "text/plain",
+              "image/*",
+              "audio/*",
+              "video/mp4"
+            ]
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "verifyApiUrl": "http://192.168.10.180:3000/api/verify"
+    }
+  }
+}
