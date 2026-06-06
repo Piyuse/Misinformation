@@ -35,5 +35,22 @@ Open http://localhost:3000.
 
 Verdicts are evidence-based: `Supported`, `False`, `Misleading`, or `Unverified`.
 
+<h1>Problem Statement</h1>
+Senior citizens often struggle to identify scams, phishing attempts, and misinformation circulating through WhatsApp and Instagram. Our solution provides an AI-powered Digital Safety Agent that investigates shared content and delivers simple, trustworthy verification before users act on it.
+
+<h1>Solution</h1>
+The solution is an AI-powered Digital Safety Agent for senior citizens.
+
+Users can share suspicious WhatsApp messages, Instagram links, screenshots, voice notes, or videos directly to the application using the device’s Share button. Once the content reaches the app, the agent analyzes it through multiple verification steps instead of simply giving a chatbot-style reply.
+
+<H1>Features</H1>
+User can check the fact of a link,poster,message(text),voice with multilanguage suppport.
+Codex Usage
+
+TechStack:
+React Native
+Next js route(backend)
+
+
 <img width="540" height="1200" alt="WhatsApp Image 2026-06-07 at 4 34 34 AM" src="https://github.com/user-attachments/assets/d145b007-0a11-444d-993b-9bdfe710d6b3" />
 
