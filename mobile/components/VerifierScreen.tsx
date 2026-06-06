@@ -3,7 +3,7 @@ import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -18,6 +18,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ResultCard } from "@/components/ResultCard";
+import {
+  hasOverlayPermission,
+  isFloatingScannerAvailable,
+  openOverlaySettings,
+  startFloatingScanner,
+  stopFloatingScanner
+} from "@/lib/floatingScanner";
 import { verifyMessage } from "@/lib/verify";
 import type { SupportedLanguage, VerifyResult } from "@/types/verification";
 
@@ -138,6 +145,34 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
+  const [floatingScannerActive, setFloatingScannerActive] = useState(false);
+
+  useEffect(() => {
+    if (initialDraft?.messageText !== undefined) {
+      setMessageText(initialDraft.messageText);
+    }
+
+    if (initialDraft?.sourceUrl !== undefined) {
+      setSourceUrl(initialDraft.sourceUrl);
+    }
+
+    if (initialDraft?.image) {
+      setImage(initialDraft.image);
+    }
+
+    if (initialDraft?.audio) {
+      setAudio(initialDraft.audio);
+    }
+
+    if (initialDraft?.video) {
+      setVideo(initialDraft.video);
+    }
+  }, [initialDraft]);
+
+  useEffect(() => {
+    hasOverlayPermission().then(setOverlayEnabled);
+  }, []);
 
   async function pasteClipboard() {
     const text = await Clipboard.getStringAsync();
@@ -209,6 +244,32 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
     }
   }
 
+  async function enableFloatingScanner() {
+    setError("");
+
+    if (!isFloatingScannerAvailable) {
+      setError("Floating scanner is available only in the Android dev build.");
+      return;
+    }
+
+    const hasPermission = await hasOverlayPermission();
+
+    if (!hasPermission) {
+      openOverlaySettings();
+      setError("Enable Display over other apps for Falsify, then return and tap Start bubble.");
+      return;
+    }
+
+    await startFloatingScanner();
+    setOverlayEnabled(true);
+    setFloatingScannerActive(true);
+  }
+
+  async function disableFloatingScanner() {
+    await stopFloatingScanner();
+    setFloatingScannerActive(false);
+  }
+
   async function submit() {
     setError("");
     setResult(null);
@@ -254,6 +315,30 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
               Share WhatsApp, Instagram, screenshots, or voice messages to Falsify and get a
               simple explanation in your language.
             </Text>
+          </View>
+
+          <View style={styles.scannerPanel}>
+            <View style={styles.scannerTextWrap}>
+              <Text style={styles.scannerTitle}>Floating screen scanner</Text>
+              <Text style={styles.scannerText}>
+                Start a Falsify bubble, open WhatsApp or Instagram, then tap the bubble to scan the
+                current screen with your permission.
+              </Text>
+            </View>
+            <View style={styles.scannerActions}>
+              <Pressable onPress={enableFloatingScanner} style={styles.scannerButton}>
+                <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={18} color="#ffffff" />
+                <Text style={styles.scannerButtonText}>
+                  {overlayEnabled || floatingScannerActive ? "Start bubble" : "Enable bubble"}
+                </Text>
+              </Pressable>
+              {floatingScannerActive ? (
+                <Pressable onPress={disableFloatingScanner} style={styles.scannerStopButton}>
+                  <MaterialCommunityIcons name="close-circle-outline" size={18} color="#14213d" />
+                  <Text style={styles.scannerStopText}>Stop</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.panel}>
@@ -459,6 +544,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
     padding: 16
+  },
+  scannerPanel: {
+    backgroundColor: "#eef4ff",
+    borderColor: "#bfdbfe",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 12,
+    padding: 14
+  },
+  scannerTextWrap: {
+    gap: 5
+  },
+  scannerTitle: {
+    color: "#14213d",
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  scannerText: {
+    color: "#526071",
+    fontSize: 13,
+    lineHeight: 19
+  },
+  scannerActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  scannerButton: {
+    alignItems: "center",
+    backgroundColor: "#14213d",
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 44,
+    paddingHorizontal: 13
+  },
+  scannerButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+  scannerStopButton: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(20,33,61,0.12)",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 44,
+    paddingHorizontal: 13
+  },
+  scannerStopText: {
+    color: "#14213d",
+    fontSize: 13,
+    fontWeight: "900"
   },
   label: {
     color: "#14213d",

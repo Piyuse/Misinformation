@@ -1,4 +1,6 @@
 import { useIncomingShare } from "expo-sharing";
+import * as Linking from "expo-linking";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { VerifierScreen, type SharedDraft } from "@/components/VerifierScreen";
 
@@ -100,8 +102,43 @@ function draftFromPayloads(payloads: unknown) {
   return draft;
 }
 
+function draftFromUrl(url?: string | null): SharedDraft {
+  if (!url) {
+    return {};
+  }
+
+  const parsed = Linking.parse(url);
+  const imageUri =
+    typeof parsed.queryParams?.imageUri === "string" ? parsed.queryParams.imageUri : undefined;
+
+  if (parsed.hostname === "screen-scan" && imageUri) {
+    return {
+      image: {
+        uri: imageUri,
+        name: "screen-scan.png",
+        mimeType: "image/png"
+      }
+    };
+  }
+
+  return {};
+}
+
 export default function App() {
   const { resolvedSharedPayloads, isResolving, error } = useIncomingShare();
+  const [linkDraft, setLinkDraft] = useState<SharedDraft>({});
+
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      setLinkDraft(draftFromUrl(url));
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      setLinkDraft(draftFromUrl(url));
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   if (isResolving) {
     return (
@@ -120,7 +157,14 @@ export default function App() {
     );
   }
 
-  return <VerifierScreen initialDraft={draftFromPayloads(resolvedSharedPayloads)} />;
+  return (
+    <VerifierScreen
+      initialDraft={{
+        ...draftFromPayloads(resolvedSharedPayloads),
+        ...linkDraft
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
