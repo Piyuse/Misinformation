@@ -10,6 +10,10 @@ function getFfmpegPath() {
 }
 
 function extensionForMimeType(mimeType: string) {
+  if (mimeType.includes("quicktime") || mimeType.includes("mov")) {
+    return "mov";
+  }
+
   if (mimeType.includes("ogg") || mimeType.includes("opus")) {
     return "ogg";
   }
@@ -91,6 +95,46 @@ export async function convertAudioToWav(file: File) {
     return new File([new Uint8Array(output)], "converted-voice.wav", {
       type: "audio/wav"
     });
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+export async function extractVideoFrameDataUrls(file: File, maxFrames = 5) {
+  const workDir = path.join(tmpdir(), `falsify-video-${randomUUID()}`);
+  const inputPath = path.join(workDir, `input.${extensionForMimeType(file.type)}`);
+  const outputPattern = path.join(workDir, "frame-%03d.jpg");
+
+  await mkdir(workDir, { recursive: true });
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    await writeFile(inputPath, bytes);
+    await runFfmpeg([
+      "-y",
+      "-i",
+      inputPath,
+      "-vf",
+      "fps=1/3,scale='min(640,iw)':-2",
+      "-frames:v",
+      String(maxFrames),
+      outputPattern
+    ]);
+
+    const frames: string[] = [];
+
+    for (let index = 1; index <= maxFrames; index += 1) {
+      const framePath = path.join(workDir, `frame-${String(index).padStart(3, "0")}.jpg`);
+
+      try {
+        const output = await readFile(framePath);
+        frames.push(`data:image/jpeg;base64,${output.toString("base64")}`);
+      } catch {
+        break;
+      }
+    }
+
+    return frames;
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }

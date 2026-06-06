@@ -10,6 +10,7 @@ export const verdictSchema = z.enum([
 export const confidenceSchema = z.enum(["low", "medium", "high"]);
 export const safetyStatusSchema = z.enum(["Safe", "Suspicious", "Likely Scam"]);
 export const viralRiskLevelSchema = z.enum(["low", "medium", "high"]);
+export const mediaTypeSchema = z.enum(["text", "url", "image", "audio", "video"]);
 
 export const evidenceSchema = z.object({
   title: z.string().min(1),
@@ -49,6 +50,7 @@ export const claimExtractionSchema = z.object({
 export const verifyResultSchema = z.object({
   verdict: verdictSchema,
   confidence: confidenceSchema,
+  mediaType: mediaTypeSchema.optional(),
   safetyStatus: safetyStatusSchema.optional(),
   agentDecision: z.string().optional(),
   seenCount: z.number().int().nonnegative().optional(),
@@ -61,6 +63,31 @@ export const verifyResultSchema = z.object({
   simpleSummary: z.string().min(1),
   detectedLanguage: z.string().min(1),
   transcript: z.string().nullable().optional(),
+  videoTranscript: z.string().nullable().optional(),
+  frameFindings: z
+    .array(
+      z.object({
+        frameNumber: z.number().int().positive(),
+        visibleText: z.string().nullable().optional(),
+        sceneSummary: z.string().min(1),
+        suspiciousSignals: z.array(z.string()).optional()
+      })
+    )
+    .optional(),
+  reelAnalysis: z.string().optional(),
+  instagramPreview: z
+    .object({
+      providerName: z.string().min(1),
+      authorName: z.string().optional(),
+      title: z.string().optional(),
+      thumbnailUrl: z.string().url().optional(),
+      html: z.string().optional(),
+      source: z.literal("instagram_oembed"),
+      unavailableReason: z.string().optional()
+    })
+    .optional(),
+  manipulationSignals: z.array(z.string()).optional(),
+  mediaConfidence: confidenceSchema.optional(),
   claims: z.array(z.string()).max(3),
   evidence: z.array(evidenceSchema).max(10),
   agentChecks: z
@@ -91,6 +118,7 @@ export type Verdict = z.infer<typeof verdictSchema>;
 export type Confidence = z.infer<typeof confidenceSchema>;
 export type SafetyStatus = z.infer<typeof safetyStatusSchema>;
 export type ViralRiskLevel = z.infer<typeof viralRiskLevelSchema>;
+export type MediaType = z.infer<typeof mediaTypeSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type ClaimExtraction = z.infer<typeof claimExtractionSchema>;
 export type VerifyResult = z.infer<typeof verifyResultSchema>;
@@ -112,6 +140,8 @@ export const ACCEPTED_AUDIO_TYPES = [
   "application/octet-stream",
   "video/mp4"
 ];
+export const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime"];
 
 export function createUnverifiedResult(
   summary: string,

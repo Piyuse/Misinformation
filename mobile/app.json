@@ -35,13 +35,15 @@
               "text/plain",
               "image/*",
               "audio/*",
-              "video/mp4"
+              "video/mp4",
+              "video/quicktime"
             ],
             "multipleShareMimeTypes": [
               "text/plain",
               "image/*",
               "audio/*",
-              "video/mp4"
+              "video/mp4",
+              "video/quicktime"
             ]
           }
         }

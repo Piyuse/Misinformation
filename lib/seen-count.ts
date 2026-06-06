@@ -44,6 +44,7 @@ export type SeenCountMetadata = {
   hasLink: boolean;
   hasAudio: boolean;
   hasImage: boolean;
+  hasVideo?: boolean;
   detectedLanguage?: string;
 };
 
@@ -164,11 +165,17 @@ export class SeenCountStore {
         has_link INTEGER NOT NULL DEFAULT 0,
         has_audio INTEGER NOT NULL DEFAULT 0,
         has_image INTEGER NOT NULL DEFAULT 0,
+        has_video INTEGER NOT NULL DEFAULT 0,
         detected_language TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_message_seen_similarity
         ON message_seen_counts(similarity_key);
     `);
+    try {
+      this.db.exec("ALTER TABLE message_seen_counts ADD COLUMN has_video INTEGER NOT NULL DEFAULT 0;");
+    } catch {
+      // Existing v1 databases may already have this column.
+    }
   }
 
   recordSeen(text: string, metadata: SeenCountMetadata): SeenCountStats {
@@ -180,15 +187,16 @@ export class SeenCountStore {
         `
         INSERT INTO message_seen_counts (
           exact_hash, similarity_key, first_seen_at, last_seen_at, seen_count,
-          has_link, has_audio, has_image, detected_language
+          has_link, has_audio, has_image, has_video, detected_language
         )
-        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
         ON CONFLICT(exact_hash) DO UPDATE SET
           last_seen_at = excluded.last_seen_at,
           seen_count = seen_count + 1,
           has_link = excluded.has_link,
           has_audio = excluded.has_audio,
           has_image = excluded.has_image,
+          has_video = excluded.has_video,
           detected_language = COALESCE(excluded.detected_language, detected_language)
       `
       )
@@ -200,6 +208,7 @@ export class SeenCountStore {
         metadata.hasLink ? 1 : 0,
         metadata.hasAudio ? 1 : 0,
         metadata.hasImage ? 1 : 0,
+        metadata.hasVideo ? 1 : 0,
         metadata.detectedLanguage ?? null
       );
 

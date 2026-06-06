@@ -2,7 +2,7 @@
   "name": "falsify-mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "start:dev-client": "expo start --dev-client --host localhost",

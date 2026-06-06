@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { transcribeAudio } from "@/lib/openai";
+import { extractVideoFrameDataUrls } from "@/lib/audio";
 import {
   ACCEPTED_AUDIO_TYPES,
   ACCEPTED_IMAGE_TYPES,
+  ACCEPTED_VIDEO_TYPES,
   MAX_AUDIO_BYTES,
   MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
   supportedLanguageSchema,
   verifyResultSchema
 } from "@/lib/schema";
@@ -38,6 +41,24 @@ function validateAudioFile(file: File) {
 
   if (file.size > MAX_AUDIO_BYTES) {
     throw new Error("Voice message must be smaller than 25 MB.");
+  }
+}
+
+function validateVideoFile(file: File) {
+  if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+    throw new Error("Only MP4 or MOV reels/videos are supported.");
+  }
+
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error("Reel/video must be smaller than 25 MB.");
+  }
+}
+
+async function transcribeVideoIfPossible(file: File) {
+  try {
+    return await transcribeAudio(file);
+  } catch {
+    return undefined;
   }
 }
 
@@ -89,6 +110,9 @@ async function handleJsonRequest(request: Request) {
     audioBase64?: string;
     audioMimeType?: string;
     audioName?: string;
+    videoBase64?: string;
+    videoMimeType?: string;
+    videoName?: string;
   };
 
   const messageText = typeof body.messageText === "string" ? body.messageText.trim() : undefined;
@@ -100,6 +124,8 @@ async function handleJsonRequest(request: Request) {
       : undefined;
 
   let transcript: string | undefined;
+  let videoFrameDataUrls: string[] | undefined;
+  let mediaType: "text" | "url" | "image" | "audio" | "video" | undefined;
 
   if (body.audioBase64) {
     const audioFile = fileFromBase64({
@@ -109,12 +135,29 @@ async function handleJsonRequest(request: Request) {
     });
     validateAudioFile(audioFile);
     transcript = await transcribeAudio(audioFile);
+    mediaType = "audio";
   }
 
-  if (!messageText && !sourceUrl && !imageDataUrl && !transcript) {
+  if (body.videoBase64) {
+    const videoFile = fileFromBase64({
+      base64: body.videoBase64,
+      mimeType: body.videoMimeType || "video/mp4",
+      name: body.videoName || "instagram-reel.mp4"
+    });
+    validateVideoFile(videoFile);
+    transcript = (await transcribeVideoIfPossible(videoFile)) ?? transcript;
+    videoFrameDataUrls = await extractVideoFrameDataUrls(videoFile);
+    mediaType = "video";
+  }
+
+  if (!mediaType) {
+    mediaType = imageDataUrl ? "image" : sourceUrl ? "url" : "text";
+  }
+
+  if (!messageText && !sourceUrl && !imageDataUrl && !transcript && !videoFrameDataUrls?.length) {
     return NextResponse.json(
       {
-        error: "Add forwarded text, a source URL, a screenshot, or a voice message to verify."
+        error: "Add forwarded text, a source URL, a screenshot, a voice message, or a reel/video to verify."
       },
       { status: 400 }
     );
@@ -125,6 +168,8 @@ async function handleJsonRequest(request: Request) {
     sourceUrl,
     imageDataUrl,
     transcript,
+    videoFrameDataUrls,
+    mediaType,
     language
   });
 
@@ -138,14 +183,16 @@ async function handleMultipartRequest(request: Request) {
   const language = parseLanguage(cleanField(formData.get("language")));
   const image = formData.get("image");
   const audio = formData.get("audio");
+  const video = formData.get("video");
 
   const imageFile = image instanceof File && image.size > 0 ? image : undefined;
   const audioFile = audio instanceof File && audio.size > 0 ? audio : undefined;
+  const videoFile = video instanceof File && video.size > 0 ? video : undefined;
 
-  if (!messageText && !sourceUrl && !imageFile && !audioFile) {
+  if (!messageText && !sourceUrl && !imageFile && !audioFile && !videoFile) {
     return NextResponse.json(
       {
-        error: "Add forwarded text, a source URL, a screenshot, or a voice message to verify."
+        error: "Add forwarded text, a source URL, a screenshot, a voice message, or a reel/video to verify."
       },
       { status: 400 }
     );
@@ -153,10 +200,21 @@ async function handleMultipartRequest(request: Request) {
 
   const imageDataUrl = imageFile ? await fileToDataUrl(imageFile) : undefined;
   let transcript: string | undefined;
+  let videoFrameDataUrls: string[] | undefined;
+  let mediaType: "text" | "url" | "image" | "audio" | "video" =
+    imageFile ? "image" : sourceUrl ? "url" : "text";
 
   if (audioFile) {
     validateAudioFile(audioFile);
     transcript = await transcribeAudio(audioFile);
+    mediaType = "audio";
+  }
+
+  if (videoFile) {
+    validateVideoFile(videoFile);
+    transcript = (await transcribeVideoIfPossible(videoFile)) ?? transcript;
+    videoFrameDataUrls = await extractVideoFrameDataUrls(videoFile);
+    mediaType = "video";
   }
 
   const result = await verifyContent({
@@ -164,6 +222,8 @@ async function handleMultipartRequest(request: Request) {
     sourceUrl,
     imageDataUrl,
     transcript,
+    videoFrameDataUrls,
+    mediaType,
     language
   });
 

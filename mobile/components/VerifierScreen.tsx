@@ -37,6 +37,10 @@ const languageOptions: Array<{ label: string; value: SupportedLanguage }> = [
 ];
 
 function extensionForMimeType(mimeType?: string | null) {
+  if (mimeType?.includes("quicktime") || mimeType?.includes("mov")) {
+    return "mov";
+  }
+
   if (mimeType?.includes("ogg") || mimeType?.includes("opus")) {
     return "ogg";
   }
@@ -82,6 +86,28 @@ async function cacheSharedAudioFile(file: NonNullable<SharedDraft["audio"]>) {
   };
 }
 
+async function cacheSharedVideoFile(file: NonNullable<SharedDraft["video"]>) {
+  if (file.uri.startsWith("file://")) {
+    return file;
+  }
+
+  const mimeType =
+    !file.mimeType || file.mimeType === "application/octet-stream" ? "video/mp4" : file.mimeType;
+  const extension = extensionForMimeType(mimeType);
+  const targetUri = `${FileSystem.cacheDirectory}falsify-reel-${Date.now()}.${extension}`;
+
+  await FileSystem.copyAsync({
+    from: file.uri,
+    to: targetUri
+  });
+
+  return {
+    uri: targetUri,
+    name: file.name || `instagram-reel.${extension}`,
+    mimeType
+  };
+}
+
 export type SharedDraft = {
   messageText?: string;
   sourceUrl?: string;
@@ -95,6 +121,11 @@ export type SharedDraft = {
     name?: string | null;
     mimeType?: string | null;
   } | null;
+  video?: {
+    uri: string;
+    name?: string | null;
+    mimeType?: string | null;
+  } | null;
 };
 
 export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft }) {
@@ -102,6 +133,7 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
   const [sourceUrl, setSourceUrl] = useState(initialDraft?.sourceUrl ?? "");
   const [image, setImage] = useState<SharedDraft["image"]>(initialDraft?.image ?? null);
   const [audio, setAudio] = useState<SharedDraft["audio"]>(initialDraft?.audio ?? null);
+  const [video, setVideo] = useState<SharedDraft["video"]>(initialDraft?.video ?? null);
   const [language, setLanguage] = useState<SupportedLanguage>("auto");
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState("");
@@ -147,13 +179,29 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
 
   async function pickAudio() {
     const picked = await DocumentPicker.getDocumentAsync({
-      type: ["audio/*", "video/mp4"],
+      type: ["audio/*"],
       multiple: false,
       copyToCacheDirectory: true
     });
 
     if (!picked.canceled && picked.assets[0]) {
       setAudio({
+        uri: picked.assets[0].uri,
+        name: picked.assets[0].name,
+        mimeType: picked.assets[0].mimeType
+      });
+    }
+  }
+
+  async function pickVideo() {
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ["video/mp4", "video/quicktime"],
+      multiple: false,
+      copyToCacheDirectory: true
+    });
+
+    if (!picked.canceled && picked.assets[0]) {
+      setVideo({
         uri: picked.assets[0].uri,
         name: picked.assets[0].name,
         mimeType: picked.assets[0].mimeType
@@ -168,11 +216,13 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
 
     try {
       const cachedAudio = audio ? await cacheSharedAudioFile(audio) : null;
+      const cachedVideo = video ? await cacheSharedVideoFile(video) : null;
       const response = await verifyMessage({
         messageText,
         sourceUrl,
         image,
         audio: cachedAudio,
+        video: cachedVideo,
         language
       });
       setResult(response);
@@ -262,6 +312,10 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
                 <MaterialCommunityIcons name="microphone-plus" size={19} color="#14213d" />
                 <Text style={styles.secondaryText}>Voice</Text>
               </Pressable>
+              <Pressable onPress={pickVideo} style={styles.secondaryButton}>
+                <MaterialCommunityIcons name="movie-open-plus" size={19} color="#14213d" />
+                <Text style={styles.secondaryText}>Reel</Text>
+              </Pressable>
             </View>
 
             <Text style={styles.label}>Source link</Text>
@@ -302,6 +356,23 @@ export function VerifierScreen({ initialDraft }: { initialDraft?: SharedDraft })
                   <Text style={styles.imageType}>{audio.mimeType || "audio"}</Text>
                 </View>
                 <Pressable onPress={() => setAudio(null)} style={styles.iconButton}>
+                  <MaterialCommunityIcons name="close" size={20} color="#14213d" />
+                </Pressable>
+              </View>
+            ) : null}
+
+            {video ? (
+              <View style={styles.videoPreview}>
+                <View style={styles.fileIcon}>
+                  <MaterialCommunityIcons name="movie-open" size={24} color="#14213d" />
+                </View>
+                <View style={styles.imageMeta}>
+                  <Text numberOfLines={1} style={styles.imageName}>
+                    {video.name || "Shared Instagram Reel"}
+                  </Text>
+                  <Text style={styles.imageType}>{video.mimeType || "video"}</Text>
+                </View>
+                <Pressable onPress={() => setVideo(null)} style={styles.iconButton}>
                   <MaterialCommunityIcons name="close" size={20} color="#14213d" />
                 </Pressable>
               </View>
@@ -472,6 +543,14 @@ const styles = StyleSheet.create({
   filePreview: {
     alignItems: "center",
     backgroundColor: "#eef2e8",
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: 10,
+    padding: 10
+  },
+  videoPreview: {
+    alignItems: "center",
+    backgroundColor: "#eef4ff",
     borderRadius: 8,
     flexDirection: "row",
     gap: 10,

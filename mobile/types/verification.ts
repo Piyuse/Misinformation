@@ -2,6 +2,7 @@ export type Verdict = "Supported" | "False" | "Misleading" | "Unverified";
 export type Confidence = "low" | "medium" | "high";
 export type SafetyStatus = "Safe" | "Suspicious" | "Likely Scam";
 export type ViralRiskLevel = "low" | "medium" | "high";
+export type MediaType = "text" | "url" | "image" | "audio" | "video";
 export type SupportedLanguage =
   | "auto"
   | "english"
@@ -28,6 +29,7 @@ export type Evidence = {
 export type VerifyResult = {
   verdict: Verdict;
   confidence: Confidence;
+  mediaType?: MediaType;
   safetyStatus?: SafetyStatus;
   agentDecision?: string;
   seenCount?: number;
@@ -40,6 +42,25 @@ export type VerifyResult = {
   simpleSummary: string;
   detectedLanguage: string;
   transcript?: string | null;
+  videoTranscript?: string | null;
+  frameFindings?: Array<{
+    frameNumber: number;
+    visibleText?: string | null;
+    sceneSummary: string;
+    suspiciousSignals?: string[];
+  }>;
+  reelAnalysis?: string;
+  instagramPreview?: {
+    providerName: string;
+    authorName?: string;
+    title?: string;
+    thumbnailUrl?: string;
+    html?: string;
+    source: "instagram_oembed";
+    unavailableReason?: string;
+  };
+  manipulationSignals?: string[];
+  mediaConfidence?: Confidence;
   claims: string[];
   evidence: Evidence[];
   agentChecks?: {

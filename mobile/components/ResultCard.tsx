@@ -22,6 +22,7 @@ export function ResultCard({ result }: { result: VerifyResult }) {
   const shareText = [
     `Digital Safety Agent: ${safetyStatus}`,
     `Verification: ${result.verdict} (${result.confidence} confidence)`,
+    result.reelAnalysis ? `Reel/video: ${result.reelAnalysis}` : undefined,
     result.seenCountLabel,
     result.shareableExplanation || result.simpleSummary || result.summary,
     result.safetyAdvice
@@ -93,6 +94,57 @@ export function ResultCard({ result }: { result: VerifyResult }) {
       </View>
       <Text style={styles.safety}>{result.safetyAdvice}</Text>
 
+      {result.mediaType === "video" || result.reelAnalysis ? (
+        <View style={styles.reelBox}>
+          <Text style={styles.sectionTitle}>Reel / video analysis</Text>
+          <Text style={styles.evidenceSnippet}>
+            {result.reelAnalysis ||
+              "The reel link was checked, but the video itself was not available for inspection."}
+          </Text>
+          {result.mediaConfidence ? (
+            <Text style={styles.stance}>{result.mediaConfidence} media confidence</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {result.instagramPreview ? (
+        <View style={styles.instagramBox}>
+          <Text style={styles.sectionTitle}>Instagram preview</Text>
+          <Text style={styles.evidenceSnippet}>
+            {result.instagramPreview.unavailableReason ||
+              "Basic public Instagram preview metadata was available."}
+          </Text>
+          {result.instagramPreview.authorName ? (
+            <Text style={styles.evidenceSnippet}>
+              Author: {result.instagramPreview.authorName}
+            </Text>
+          ) : null}
+          {result.instagramPreview.title ? (
+            <Text style={styles.evidenceSnippet}>Title: {result.instagramPreview.title}</Text>
+          ) : null}
+          {result.instagramPreview.thumbnailUrl ? (
+            <Pressable
+              onPress={() => Linking.openURL(result.instagramPreview?.thumbnailUrl || "")}
+              style={styles.previewLink}
+            >
+              <MaterialCommunityIcons name="image-search" size={18} color="#14213d" />
+              <Text style={styles.previewLinkText}>Open preview thumbnail</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {result.manipulationSignals && result.manipulationSignals.length > 0 ? (
+        <View style={styles.mediaWarningBox}>
+          <Text style={styles.sectionTitle}>Possible media caution signs</Text>
+          {result.manipulationSignals.map((signal) => (
+            <Text style={styles.evidenceSnippet} key={signal}>
+              {signal}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       {result.agentChecks ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Agent checks</Text>
@@ -129,8 +181,28 @@ export function ResultCard({ result }: { result: VerifyResult }) {
 
       {result.transcript ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Voice text heard</Text>
+          <Text style={styles.sectionTitle}>
+            {result.mediaType === "video" ? "Reel audio heard" : "Voice text heard"}
+          </Text>
           <Text style={styles.transcript}>{result.transcript}</Text>
+        </View>
+      ) : null}
+
+      {result.frameFindings && result.frameFindings.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Video frames checked</Text>
+          {result.frameFindings.map((finding) => (
+            <View style={styles.evidence} key={finding.frameNumber}>
+              <Text style={styles.evidenceTitle}>Frame {finding.frameNumber}</Text>
+              {finding.visibleText ? (
+                <Text style={styles.evidenceSnippet}>Visible text: {finding.visibleText}</Text>
+              ) : null}
+              <Text style={styles.evidenceSnippet}>{finding.sceneSummary}</Text>
+              {finding.suspiciousSignals && finding.suspiciousSignals.length > 0 ? (
+                <Text style={styles.stance}>{finding.suspiciousSignals.join("; ")}</Text>
+              ) : null}
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -276,6 +348,46 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 22,
     padding: 12
+  },
+  reelBox: {
+    backgroundColor: "#eef4ff",
+    borderColor: "#bfdbfe",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  mediaWarningBox: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fde68a",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  instagramBox: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12
+  },
+  previewLink: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(20,33,61,0.12)",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 42,
+    paddingHorizontal: 12
+  },
+  previewLinkText: {
+    color: "#14213d",
+    fontSize: 14,
+    fontWeight: "800"
   },
   seenBox: {
     backgroundColor: "#f8fafc",

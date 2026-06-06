@@ -1,10 +1,13 @@
 import type { VerifyResult } from "@/lib/schema";
 import type { SeenCountStats } from "@/lib/seen-count";
+import type { VideoFrameAnalysis } from "@/lib/openai";
 
 type DigitalSafetyAgentInput = {
   originalText: string;
   sourceUrl?: string;
   seenStats?: SeenCountStats;
+  mediaType?: VerifyResult["mediaType"];
+  videoFrameAnalysis?: VideoFrameAnalysis;
   result: VerifyResult;
 };
 
@@ -145,6 +148,10 @@ function detectSignals(text: string) {
     signals.push("does not provide a clear trustworthy source");
   }
 
+  if (/\bdeepfake|edited video|fake reel|ai video|morphed\b/i.test(text)) {
+    signals.push("asks the user to trust or forward a possibly manipulated video claim");
+  }
+
   return unique(signals);
 }
 
@@ -203,13 +210,24 @@ export function runDigitalSafetyAgent({
   originalText,
   sourceUrl,
   seenStats,
+  mediaType,
+  videoFrameAnalysis,
   result
 }: DigitalSafetyAgentInput): VerifyResult {
   const urls = unique([...extractUrls(originalText), ...(sourceUrl ? [sourceUrl] : [])]);
   const linkFindings = analyzeLinks(urls);
   const scamSignals = detectSignals(originalText);
   const highRiskLinks = linkFindings.filter((link) => link.risk === "high").length;
-  const safetyStatus = decideSafetyStatus({ result, scamSignals, highRiskLinks, seenStats });
+  const mediaSignals = videoFrameAnalysis?.manipulationSignals ?? [];
+  const allSignals = unique([...scamSignals, ...mediaSignals]);
+  const baseSafetyStatus = decideSafetyStatus({
+    result,
+    scamSignals,
+    highRiskLinks,
+    seenStats
+  });
+  const safetyStatus =
+    baseSafetyStatus === "Safe" && mediaSignals.length > 0 ? "Suspicious" : baseSafetyStatus;
   const safetyAdvice = adviceFor(safetyStatus);
   const viralMessage =
     seenStats && seenStats.similarSeenCount >= 20
@@ -225,8 +243,8 @@ export function runDigitalSafetyAgent({
   const agentChecks = {
     claimVerification: `Claim verification result: ${result.verdict} with ${result.confidence} confidence.`,
     scamDetection:
-      scamSignals.length > 0
-        ? `Warning signs found: ${scamSignals.join("; ")}.`
+      allSignals.length > 0
+        ? `Warning signs found: ${allSignals.join("; ")}.`
         : "No strong scam wording was found in the message text.",
     linkAnalysis: linkSummary,
     misinformationCheck:
@@ -235,6 +253,13 @@ export function runDigitalSafetyAgent({
         : `The main claim is ${result.verdict.toLowerCase()} or not fully reliable based on available evidence.`,
     simpleExplanation: [result.simpleSummary || result.summary, viralMessage].filter(Boolean).join(" ")
   };
+
+  const reelAdvice =
+    mediaType === "video"
+      ? videoFrameAnalysis
+        ? `Reel/video check: ${videoFrameAnalysis.reelAnalysis}`
+        : "Reel/video check: The reel link was noted, but the actual video could not be inspected unless it was uploaded."
+      : "";
 
   const agentDecision = [
     `Digital Safety Agent decision: ${safetyStatus}.`,
@@ -246,8 +271,9 @@ export function runDigitalSafetyAgent({
 
   return {
     ...result,
+    mediaType,
     safetyStatus,
-    agentDecision,
+    agentDecision: [agentDecision, reelAdvice].filter(Boolean).join(" "),
     seenCount: seenStats?.seenCount ?? result.seenCount,
     similarSeenCount: seenStats?.similarSeenCount ?? result.similarSeenCount,
     firstSeenAt: seenStats?.firstSeenAt ?? result.firstSeenAt,
@@ -255,11 +281,17 @@ export function runDigitalSafetyAgent({
     seenCountLabel: seenStats?.seenCountLabel ?? result.seenCountLabel,
     viralRiskLevel: seenStats?.viralRiskLevel ?? result.viralRiskLevel,
     agentChecks,
-    scamSignals,
+    scamSignals: allSignals,
     linkFindings,
+    videoTranscript: mediaType === "video" ? result.transcript ?? null : result.videoTranscript,
+    frameFindings: videoFrameAnalysis?.frameFindings ?? result.frameFindings,
+    reelAnalysis: videoFrameAnalysis?.reelAnalysis ?? result.reelAnalysis ?? (reelAdvice || undefined),
+    manipulationSignals: mediaSignals.length > 0 ? mediaSignals : result.manipulationSignals,
+    mediaConfidence: videoFrameAnalysis?.mediaConfidence ?? result.mediaConfidence,
     safetyAdvice: [safetyAdvice, viralMessage].filter(Boolean).join(" "),
     shareableExplanation: [
       `${safetyStatus}: ${result.shareableExplanation || result.simpleSummary}.`,
+      reelAdvice,
       safetyAdvice,
       seenStats?.seenCountLabel
     ]

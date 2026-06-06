@@ -22,9 +22,18 @@ type VerifyInput = {
     name?: string | null;
     mimeType?: string | null;
   } | null;
+  video?: {
+    uri: string;
+    name?: string | null;
+    mimeType?: string | null;
+  } | null;
 };
 
 function extensionForMimeType(mimeType: string) {
+  if (mimeType.includes("quicktime") || mimeType.includes("mov")) {
+    return "mov";
+  }
+
   if (mimeType.includes("ogg") || mimeType.includes("opus")) {
     return "ogg";
   }
@@ -51,6 +60,14 @@ function extensionForMimeType(mimeType: string) {
 function normalizeAudioMimeType(mimeType?: string | null) {
   if (!mimeType || mimeType === "application/octet-stream") {
     return "audio/ogg";
+  }
+
+  return mimeType;
+}
+
+function normalizeVideoMimeType(mimeType?: string | null) {
+  if (!mimeType || mimeType === "application/octet-stream") {
+    return "video/mp4";
   }
 
   return mimeType;
@@ -109,6 +126,7 @@ async function readVerifyResponse(response: Response): Promise<VerifyResult> {
 
 async function verifyWithJson(input: VerifyInput): Promise<VerifyResult> {
   const audioMimeType = normalizeAudioMimeType(input.audio?.mimeType);
+  const videoMimeType = normalizeVideoMimeType(input.video?.mimeType);
   const imageMimeType = input.image?.mimeType || "image/jpeg";
   const response = await fetch(getVerifyApiUrl(), {
     method: "POST",
@@ -123,7 +141,10 @@ async function verifyWithJson(input: VerifyInput): Promise<VerifyResult> {
       imageMimeType: input.image?.uri ? imageMimeType : undefined,
       audioBase64: input.audio?.uri ? await readBase64(input.audio.uri) : undefined,
       audioMimeType: input.audio?.uri ? audioMimeType : undefined,
-      audioName: input.audio?.name || `voice-message.${extensionForMimeType(audioMimeType)}`
+      audioName: input.audio?.name || `voice-message.${extensionForMimeType(audioMimeType)}`,
+      videoBase64: input.video?.uri ? await readBase64(input.video.uri) : undefined,
+      videoMimeType: input.video?.uri ? videoMimeType : undefined,
+      videoName: input.video?.name || `instagram-reel.${extensionForMimeType(videoMimeType)}`
     })
   });
 
@@ -131,7 +152,7 @@ async function verifyWithJson(input: VerifyInput): Promise<VerifyResult> {
 }
 
 export async function verifyMessage(input: VerifyInput): Promise<VerifyResult> {
-  if (input.audio?.uri) {
+  if (input.audio?.uri || input.video?.uri) {
     return verifyWithJson(input);
   }
 

@@ -23,6 +23,20 @@ function isLikelyAudioShare(contentMimeType?: string, contentUri?: string) {
   );
 }
 
+function isLikelyVideoShare(contentMimeType?: string, contentUri?: string) {
+  const lowerUri = contentUri?.toLowerCase() || "";
+
+  return (
+    contentMimeType?.startsWith("video/") ||
+    lowerUri.endsWith(".mp4") ||
+    lowerUri.endsWith(".mov")
+  );
+}
+
+function firstUrl(text: string) {
+  return text.match(/https?:\/\/[^\s]+/i)?.[0]?.replace(/[.,!?]+$/, "");
+}
+
 function isSharePayloadLike(value: unknown): value is SharePayloadLike {
   return typeof value === "object" && value !== null;
 }
@@ -46,6 +60,11 @@ function draftFromPayloads(payloads: unknown) {
 
     if (contentType === "text" && typeof payload.text === "string") {
       draft.messageText = payload.text;
+
+      const url = firstUrl(payload.text);
+      if (url?.includes("instagram.com")) {
+        draft.sourceUrl = url;
+      }
     }
 
     if (contentType === "website" && contentUri) {
@@ -60,10 +79,16 @@ function draftFromPayloads(payloads: unknown) {
       };
     }
 
-    if (
-      contentUri &&
-      (contentType === "file" || contentType === "video" || isLikelyAudioShare(contentMimeType, contentUri))
-    ) {
+    if (contentUri && (contentType === "video" || isLikelyVideoShare(contentMimeType, contentUri))) {
+      draft.video = {
+        uri: contentUri,
+        name: "shared-instagram-reel.mp4",
+        mimeType: contentMimeType || "video/mp4"
+      };
+      continue;
+    }
+
+    if (contentUri && (contentType === "file" || isLikelyAudioShare(contentMimeType, contentUri))) {
       draft.audio = {
         uri: contentUri,
         name: "shared-voice-message.m4a",

@@ -30,6 +30,18 @@ type VerifyEvidenceBundle = {
   results: SearchEvidence[];
 };
 
+export type VideoFrameAnalysis = {
+  reelAnalysis: string;
+  mediaConfidence: "low" | "medium" | "high";
+  manipulationSignals: string[];
+  frameFindings: Array<{
+    frameNumber: number;
+    visibleText?: string | null;
+    sceneSummary: string;
+    suspiciousSignals?: string[];
+  }>;
+};
+
 function getModel() {
   return process.env.OPENAI_MODEL || DEFAULT_MODEL;
 }
@@ -166,12 +178,16 @@ export async function extractClaims({
   sourceUrl,
   imageDataUrl,
   transcript,
+  videoFrameDataUrls,
+  videoFrameSummary,
   language = "auto"
 }: {
   messageText?: string;
   sourceUrl?: string;
   imageDataUrl?: string;
   transcript?: string;
+  videoFrameDataUrls?: string[];
+  videoFrameSummary?: string;
   language?: SupportedLanguage;
 }): Promise<ClaimExtraction> {
   const content: Array<Record<string, string>> = [
@@ -185,7 +201,8 @@ export async function extractClaims({
         `Preferred output language: ${language}.`,
         `Message text: ${messageText || "(none)"}`,
         `Source URL: ${sourceUrl || "(none)"}`,
-        `Voice transcript: ${transcript || "(none)"}`
+        `Voice or reel audio transcript: ${transcript || "(none)"}`,
+        `Reel frame summary: ${videoFrameSummary || "(none)"}`
       ].join("\n")
     }
   ];
@@ -194,6 +211,13 @@ export async function extractClaims({
     content.push({
       type: "input_image",
       image_url: imageDataUrl
+    });
+  }
+
+  for (const frameDataUrl of videoFrameDataUrls ?? []) {
+    content.push({
+      type: "input_image",
+      image_url: frameDataUrl
     });
   }
 
@@ -236,6 +260,105 @@ export async function extractClaims({
   });
 
   return claimExtractionSchema.parse(result);
+}
+
+export async function analyzeVideoFrames({
+  frameDataUrls,
+  transcript,
+  messageText,
+  sourceUrl,
+  language = "auto"
+}: {
+  frameDataUrls: string[];
+  transcript?: string;
+  messageText?: string;
+  sourceUrl?: string;
+  language?: SupportedLanguage;
+}): Promise<VideoFrameAnalysis | undefined> {
+  if (frameDataUrls.length === 0) {
+    return undefined;
+  }
+
+  const content: Array<Record<string, string>> = [
+    {
+      type: "input_text",
+      text: [
+        "Analyze these sampled frames from a user-provided Instagram Reel or video.",
+        "Extract visible text if present, summarize what is visually shown, and note cautious manipulation or misinformation signals.",
+        "Do not claim that a video is fake, edited, or a deepfake with certainty based only on visual impressions.",
+        "If there is no visible text, say what context can still be used: audio transcript, caption, source link, and public evidence.",
+        `Preferred output language: ${language}.`,
+        `Caption or forwarded text: ${messageText || "(none)"}`,
+        `Source URL: ${sourceUrl || "(none)"}`,
+        `Audio transcript: ${transcript || "(none)"}`
+      ].join("\n")
+    }
+  ];
+
+  frameDataUrls.forEach((frameDataUrl) => {
+    content.push({
+      type: "input_image",
+      image_url: frameDataUrl
+    });
+  });
+
+  const result = await createStructuredResponse<VideoFrameAnalysis>({
+    instructions: [
+      "You are a careful media-analysis assistant for senior citizens.",
+      "Describe only what can be seen in the sampled frames and what caution signals are present.",
+      "Use simple language. Be conservative about manipulation claims."
+    ].join(" "),
+    input: [
+      {
+        role: "user",
+        content
+      }
+    ],
+    schemaName: "video_frame_analysis",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["reelAnalysis", "mediaConfidence", "manipulationSignals", "frameFindings"],
+      properties: {
+        reelAnalysis: { type: "string" },
+        mediaConfidence: { type: "string", enum: ["low", "medium", "high"] },
+        manipulationSignals: {
+          type: "array",
+          maxItems: 5,
+          items: { type: "string" }
+        },
+        frameFindings: {
+          type: "array",
+          maxItems: 5,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["frameNumber", "visibleText", "sceneSummary", "suspiciousSignals"],
+            properties: {
+              frameNumber: { type: "number" },
+              visibleText: { type: ["string", "null"] },
+              sceneSummary: { type: "string" },
+              suspiciousSignals: {
+                type: "array",
+                maxItems: 5,
+                items: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return {
+    reelAnalysis: result.reelAnalysis,
+    mediaConfidence: result.mediaConfidence,
+    manipulationSignals: result.manipulationSignals,
+    frameFindings: result.frameFindings.map((finding, index) => ({
+      ...finding,
+      frameNumber: Math.max(1, Math.trunc(finding.frameNumber || index + 1))
+    }))
+  };
 }
 
 export async function generateVerdict({
