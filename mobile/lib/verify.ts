@@ -2,12 +2,6 @@ import type { SupportedLanguage, VerifyResult } from "@/types/verification";
 import * as FileSystem from "expo-file-system/legacy";
 import { getVerifyApiUrl } from "./config";
 
-type ReactNativeFile = {
-  uri: string;
-  name: string;
-  type: string;
-};
-
 type VerifyInput = {
   messageText?: string;
   sourceUrl?: string;
@@ -56,25 +50,6 @@ function normalizeAudioMimeType(mimeType?: string | null) {
   return mimeType;
 }
 
-function makeReactNativeFile({
-  uri,
-  name,
-  type
-}: {
-  uri: string;
-  name?: string | null;
-  type?: string | null;
-}): ReactNativeFile {
-  const fileType = type || "application/octet-stream";
-  const safeName = name?.trim() || `shared-file.${extensionForMimeType(fileType)}`;
-
-  return {
-    uri,
-    name: safeName,
-    type: fileType
-  };
-}
-
 async function readBase64(uri: string) {
   return FileSystem.readAsStringAsync(uri, {
     encoding: FileSystem.EncodingType.Base64
@@ -107,7 +82,7 @@ async function readVerifyResponse(response: Response): Promise<VerifyResult> {
   return payload as VerifyResult;
 }
 
-async function verifyWithJson(input: VerifyInput): Promise<VerifyResult> {
+export async function verifyMessage(input: VerifyInput): Promise<VerifyResult> {
   const audioMimeType = normalizeAudioMimeType(input.audio?.mimeType);
   const imageMimeType = input.image?.mimeType || "image/jpeg";
   const response = await fetch(getVerifyApiUrl(), {
@@ -125,55 +100,6 @@ async function verifyWithJson(input: VerifyInput): Promise<VerifyResult> {
       audioMimeType: input.audio?.uri ? audioMimeType : undefined,
       audioName: input.audio?.name || `voice-message.${extensionForMimeType(audioMimeType)}`
     })
-  });
-
-  return readVerifyResponse(response);
-}
-
-export async function verifyMessage(input: VerifyInput): Promise<VerifyResult> {
-  if (input.audio?.uri) {
-    return verifyWithJson(input);
-  }
-
-  const formData = new FormData();
-
-  if (input.messageText?.trim()) {
-    formData.append("messageText", input.messageText.trim());
-  }
-
-  if (input.sourceUrl?.trim()) {
-    formData.append("sourceUrl", input.sourceUrl.trim());
-  }
-
-  formData.append("language", input.language || "auto");
-
-  if (input.image?.uri) {
-    formData.append(
-      "image",
-      makeReactNativeFile({
-        uri: input.image.uri,
-        name: input.image.name || "shared-screenshot.jpg",
-        type: input.image.mimeType || "image/jpeg"
-      }) as never
-    );
-  }
-
-  if (input.audio?.uri) {
-    const mimeType = normalizeAudioMimeType(input.audio.mimeType);
-
-    formData.append(
-      "audio",
-      makeReactNativeFile({
-        uri: input.audio.uri,
-        name: input.audio.name || `voice-message.${extensionForMimeType(mimeType)}`,
-        type: mimeType
-      }) as never
-    );
-  }
-
-  const response = await fetch(getVerifyApiUrl(), {
-    method: "POST",
-    body: formData
   });
 
   return readVerifyResponse(response);
