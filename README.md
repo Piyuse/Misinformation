@@ -50,7 +50,7 @@ Codex Usage
 TechStack:
 React Native
 Next js route(backend)
-
+SQLite/local data store for seen-count style tracking
 
 <img width="540" height="1200" alt="WhatsApp Image 2026-06-07 at 4 34 34 AM" src="https://github.com/user-attachments/assets/d145b007-0a11-444d-993b-9bdfe710d6b3" />
 
